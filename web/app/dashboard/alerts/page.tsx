@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import {
   AlertTriangle,
+  CheckCircle2,
+  CircleSlash,
   Loader2,
   Megaphone,
   ShieldCheck,
@@ -33,6 +35,24 @@ const STATUS_CLASS: Record<Alert["status"], string> = {
   resolved: "bg-moss-500 text-white",
 };
 
+const DECISION_STATUS = {
+  escalated: {
+    label: "Escalated",
+    className: "bg-amber-400 text-ink-900",
+  },
+  falsePositive: {
+    label: "False positive",
+    className: "bg-moss-500 text-white",
+  },
+} as const;
+
+const ICON_OPTIONS: Array<{ type: AlertType; label: string }> = [
+  { type: "theft", label: "Theft" },
+  { type: "pocket", label: "Pocket" },
+  { type: "grab", label: "Grab" },
+  { type: "person", label: "Person" },
+];
+
 type Metric = {
   label: string;
   value: number;
@@ -45,24 +65,16 @@ export default function AlertsPage() {
   const [status, setStatus] = useState<Alert["status"] | "all">("all");
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [escalatedIds, setEscalatedIds] = useState<Set<string>>(new Set());
-
-  function applyLocalEscalations(nextAlerts: Alert[]) {
-    const updatedAlerts = nextAlerts.map((alert) =>
-      escalatedIds.has(alert.id) ? { ...alert, status: "reviewing" as const } : alert,
-    );
-    return status === "all"
-      ? updatedAlerts
-      : updatedAlerts.filter((alert) => alert.status === status);
-  }
+  const [falsePositiveIds, setFalsePositiveIds] = useState<Set<string>>(new Set());
+  const [iconOverrides, setIconOverrides] = useState<Record<string, AlertType>>({});
 
   async function loadAlerts() {
-    const query = status === "all" ? "" : `&status=${status}`;
-    const response = await fetch(`/api/alerts?limit=50${query}`, {
+    const response = await fetch("/api/alerts?limit=50", {
       cache: "no-store",
     });
     const payload = await response.json().catch(() => null);
     if (Array.isArray(payload?.alerts)) {
-      setAlerts(applyLocalEscalations(payload.alerts));
+      setAlerts(payload.alerts);
       setSource(payload.source || "api");
     }
   }
@@ -70,13 +82,12 @@ export default function AlertsPage() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const query = status === "all" ? "" : `&status=${status}`;
-      const response = await fetch(`/api/alerts?limit=50${query}`, {
+      const response = await fetch("/api/alerts?limit=50", {
         cache: "no-store",
       });
       const payload = await response.json().catch(() => null);
       if (!cancelled && Array.isArray(payload?.alerts)) {
-        setAlerts(applyLocalEscalations(payload.alerts));
+        setAlerts(payload.alerts);
         setSource(payload.source || "api");
       }
     }
@@ -86,30 +97,41 @@ export default function AlertsPage() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [status, escalatedIds]);
+  }, []);
 
-  async function escalate(alert: Alert) {
+  async function applyDecision(alert: Alert, action: "escalate" | "dismiss") {
     setWorkingId(alert.id);
     try {
       const response = await fetch("/api/alerts/decision", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ alertId: alert.id, action: "escalate" }),
+        body: JSON.stringify({ alertId: alert.id, action }),
       });
       const payload = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(payload?.error || "Escalation failed.");
+        throw new Error(payload?.error || "Decision failed.");
       }
+      const nextStatus = action === "escalate" ? "reviewing" : "resolved";
       setAlerts((current) =>
-        current.map((item) =>
-          item.id === alert.id ? { ...item, status: "reviewing" } : item,
+        (current.length ? current : fallbackAlerts).map((item) =>
+          item.id === alert.id ? { ...item, status: nextStatus } : item,
         ),
       );
-      setEscalatedIds((current) => {
-        const next = new Set(current);
-        next.add(alert.id);
-        return next;
-      });
+      if (action === "escalate") {
+        setEscalatedIds((current) => new Set(current).add(alert.id));
+        setFalsePositiveIds((current) => {
+          const next = new Set(current);
+          next.delete(alert.id);
+          return next;
+        });
+      } else {
+        setFalsePositiveIds((current) => new Set(current).add(alert.id));
+        setEscalatedIds((current) => {
+          const next = new Set(current);
+          next.delete(alert.id);
+          return next;
+        });
+      }
       if (payload?.source !== "local") {
         await loadAlerts();
       }
@@ -118,14 +140,27 @@ export default function AlertsPage() {
     }
   }
 
-  const visibleAlerts = alerts.length ? alerts : fallbackAlerts;
+  const baseAlerts = alerts.length ? alerts : fallbackAlerts;
+  const allAlerts = baseAlerts.map((alert) => ({
+    ...alert,
+    type: iconOverrides[alert.id] || alert.type,
+    status: falsePositiveIds.has(alert.id)
+      ? ("resolved" as const)
+      : escalatedIds.has(alert.id)
+        ? ("reviewing" as const)
+        : alert.status,
+  }));
+  const visibleAlerts =
+    status === "all"
+      ? allAlerts
+      : allAlerts.filter((alert) => alert.status === status);
   const counts = useMemo(
     () => ({
-      new: alerts.filter((alert) => alert.status === "new").length,
-      reviewing: alerts.filter((alert) => alert.status === "reviewing").length,
-      resolved: alerts.filter((alert) => alert.status === "resolved").length,
+      new: allAlerts.filter((alert) => alert.status === "new").length,
+      reviewing: allAlerts.filter((alert) => alert.status === "reviewing").length,
+      resolved: allAlerts.filter((alert) => alert.status === "resolved").length,
     }),
-    [alerts],
+    [allAlerts],
   );
 
   return (
@@ -208,17 +243,43 @@ export default function AlertsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-900/5">
-                {visibleAlerts.map((alert) => (
+                {visibleAlerts.map((alert) => {
+                  const decision = falsePositiveIds.has(alert.id)
+                    ? DECISION_STATUS.falsePositive
+                    : escalatedIds.has(alert.id)
+                      ? DECISION_STATUS.escalated
+                      : null;
+
+                  return (
                   <tr key={alert.id} className="bg-paper-50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div
-                          className={clsx(
-                            "grid h-8 w-8 place-items-center rounded-md",
-                            TYPE_CLASS[alert.type],
-                          )}
-                        >
-                          {TYPE_ICON[alert.type]}
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={clsx(
+                              "grid h-8 w-8 place-items-center rounded-md",
+                              TYPE_CLASS[alert.type],
+                            )}
+                          >
+                            {TYPE_ICON[alert.type]}
+                          </div>
+                          <select
+                            aria-label={`Icon for ${alert.title}`}
+                            value={alert.type}
+                            onChange={(event) =>
+                              setIconOverrides((current) => ({
+                                ...current,
+                                [alert.id]: event.target.value as AlertType,
+                              }))
+                            }
+                            className="h-8 rounded-md border border-ink-900/10 bg-paper-50 px-2 text-[11px] font-semibold text-ink-600 outline-none hover:border-ink-900/20 focus:border-rust-500"
+                          >
+                            {ICON_OPTIONS.map((option) => (
+                              <option key={option.type} value={option.type}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                         <div>
                           <div className="font-semibold text-ink-900">{alert.title}</div>
@@ -239,27 +300,63 @@ export default function AlertsPage() {
                       <span
                         className={clsx(
                           "rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize",
-                          STATUS_CLASS[alert.status],
+                          decision?.className || STATUS_CLASS[alert.status],
                         )}
                       >
-                        {alert.status}
+                        {decision?.label || alert.status}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex justify-end">
+                      <div className="flex justify-end gap-2">
                         <button
                           type="button"
-                          onClick={() => escalate(alert)}
+                          onClick={() => applyDecision(alert, "dismiss")}
                           disabled={workingId === alert.id}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-ink-900 px-3 text-[12px] font-semibold text-paper-50 disabled:opacity-60"
+                          className={clsx(
+                            "inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-[12px] font-semibold transition disabled:opacity-60",
+                            falsePositiveIds.has(alert.id) || alert.status === "resolved"
+                              ? "border-moss-500 bg-moss-500 text-white"
+                              : "border-ink-900/10 bg-paper-50 text-ink-700 hover:bg-paper-100",
+                          )}
                         >
-                          {workingId === alert.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Megaphone className="h-3.5 w-3.5" />}
-                          Escalate
+                          {workingId === alert.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : falsePositiveIds.has(alert.id) || alert.status === "resolved" ? (
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          ) : (
+                            <CircleSlash className="h-3.5 w-3.5" />
+                          )}
+                          {falsePositiveIds.has(alert.id) || alert.status === "resolved"
+                            ? "Marked false"
+                            : "False positive"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyDecision(alert, "escalate")}
+                          disabled={workingId === alert.id}
+                          className={clsx(
+                            "inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12px] font-semibold transition disabled:opacity-60",
+                            escalatedIds.has(alert.id) || alert.status === "reviewing"
+                              ? "bg-amber-400 text-ink-900"
+                              : "bg-ink-900 text-paper-50 hover:bg-ink-700",
+                          )}
+                        >
+                          {workingId === alert.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : escalatedIds.has(alert.id) || alert.status === "reviewing" ? (
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          ) : (
+                            <Megaphone className="h-3.5 w-3.5" />
+                          )}
+                          {escalatedIds.has(alert.id) || alert.status === "reviewing"
+                            ? "Escalated"
+                            : "Escalate"}
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

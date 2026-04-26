@@ -16,7 +16,7 @@ import { Logo } from "./Logo";
 
 const NAV = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Cameras", href: "/dashboard/cameras", icon: MonitorPlay },
+  { label: "Random Test Data", href: "/dashboard/cameras", icon: MonitorPlay },
   { label: "Alerts", href: "/dashboard/alerts", icon: BellRing },
   { label: "Events", href: "/dashboard/events", icon: CalendarRange },
   { label: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
