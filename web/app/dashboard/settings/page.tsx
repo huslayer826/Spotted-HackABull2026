@@ -1,10 +1,5 @@
-import { ComingSoon } from "@/components/ComingSoon";
+import { ElevenLabsVoiceSettings } from "@/components/settings/ElevenLabsVoiceSettings";
 
 export default function SettingsPage() {
-  return (
-    <ComingSoon
-      title="Settings"
-      blurb="Store config, camera management, voice and language preferences."
-    />
-  );
+  return <ElevenLabsVoiceSettings />;
 }
