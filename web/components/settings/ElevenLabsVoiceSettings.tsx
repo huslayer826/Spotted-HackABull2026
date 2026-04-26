@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
-  CheckCircle2,
   Loader2,
   Mic2,
   Square,
@@ -162,7 +161,7 @@ export function ElevenLabsVoiceSettings() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)] gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <Card className="overflow-hidden">
           <CardHeader
             title={
@@ -365,22 +364,6 @@ export function ElevenLabsVoiceSettings() {
           </form>
         </Card>
 
-        <Card className="self-start px-6 py-5">
-          <div className="flex items-center gap-2 text-[18px] font-semibold text-ink-900">
-            <CheckCircle2 className="h-5 w-5 text-rust-500" />
-            API setup
-          </div>
-          <div className="mt-4 space-y-3 text-[14px] leading-6 text-ink-700">
-            <p>
-              Add <span className="font-mono">ELEVENLABS_API_KEY</span> to the
-              web app environment before creating voices.
-            </p>
-            <p>
-              The browser sends samples to this app, then the server forwards
-              them to ElevenLabs so the key never ships to the frontend.
-            </p>
-          </div>
-        </Card>
       </div>
     </div>
   );

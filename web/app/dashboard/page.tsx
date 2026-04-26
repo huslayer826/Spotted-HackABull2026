@@ -1,11 +1,21 @@
+"use client";
+
 import { LiveLidarView } from "@/components/LiveLidarView";
-import { ActiveAlerts } from "@/components/ActiveAlerts";
+import { ActiveAlertsList } from "@/components/ActiveAlerts";
 import { RecentActivity } from "@/components/RecentActivity";
-import { AlertsToday } from "@/components/AlertsToday";
-import { EventsSummary } from "@/components/EventsSummary";
 import { RangePicker } from "@/components/RangePicker";
+import { IncidentReviewPanel } from "@/components/IncidentReviewPanel";
+import { useLiveIncident } from "@/hooks/use-live-incident";
 
 export default function DashboardPage() {
+  const {
+    alerts,
+    incident,
+    selectedAlertId,
+    selectAlert,
+    confirmIncident,
+  } = useLiveIncident();
+
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -21,17 +31,20 @@ export default function DashboardPage() {
         <RangePicker />
       </div>
 
-      {/* Main grid: left column stacks LIDAR + stats, right column stacks alerts */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-6">
-          <LiveLidarView />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <AlertsToday />
-            <EventsSummary />
-          </div>
+          <LiveLidarView incident={incident} />
+          <IncidentReviewPanel
+            incident={incident}
+            onConfirm={() => confirmIncident()}
+          />
         </div>
         <div className="space-y-6">
-          <ActiveAlerts />
+          <ActiveAlertsList
+            alerts={alerts}
+            selectedAlertId={selectedAlertId}
+            onSelectAlert={(alert) => selectAlert(alert.id)}
+          />
           <RecentActivity />
         </div>
       </div>

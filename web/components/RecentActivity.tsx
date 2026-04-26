@@ -1,47 +1,19 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Card, CardHeader } from "./Card";
 import { RunningIcon, JarIcon, BoxIcon, PersonIcon, CameraDotIcon } from "./SpotterIcons";
+import { fallbackAlerts, timeAgo, type RecentActivityItem } from "@/lib/spotter-data";
 
-type Item = {
-  icon: "theft" | "pocket" | "grab" | "person" | "camera";
-  title: string;
-  location: string;
-  ago: string;
-};
+const FALLBACK_ITEMS: RecentActivityItem[] = fallbackAlerts.map((alert, index) => ({
+  id: alert.id,
+  icon: alert.type,
+  title: alert.title,
+  location: alert.location,
+  ago: `${index + 2}m ago`,
+}));
 
-const ITEMS: Item[] = [
-  {
-    icon: "theft",
-    title: "Theft Detected",
-    location: "Back Alley",
-    ago: "2m ago",
-  },
-  {
-    icon: "pocket",
-    title: "Item Pocketed",
-    location: "Aisle 3",
-    ago: "3m ago",
-  },
-  {
-    icon: "grab",
-    title: "Item Grabbed",
-    location: "Aisle 1",
-    ago: "5m ago",
-  },
-  {
-    icon: "person",
-    title: "Person Detected",
-    location: "Entrance",
-    ago: "7m ago",
-  },
-  {
-    icon: "camera",
-    title: "Camera Online",
-    location: "Lobby",
-    ago: "8m ago",
-  },
-];
-
-const ICON_FOR: Record<Item["icon"], React.ReactNode> = {
+const ICON_FOR: Record<RecentActivityItem["icon"], React.ReactNode> = {
   theft: <RunningIcon className="h-4 w-4 text-crimson-500" />,
   pocket: <JarIcon className="h-4 w-4 text-amber-500" />,
   grab: <BoxIcon className="h-4 w-4 text-rust-500" />,
@@ -50,14 +22,48 @@ const ICON_FOR: Record<Item["icon"], React.ReactNode> = {
 };
 
 export function RecentActivity() {
+  const [items, setItems] = useState<RecentActivityItem[]>(FALLBACK_ITEMS);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadActivity() {
+      const response = await fetch("/api/events?limit=5", { cache: "no-store" });
+      const payload = await response.json().catch(() => null);
+      if (cancelled || !Array.isArray(payload?.events) || payload.events.length === 0) {
+        return;
+      }
+
+      setItems(
+        payload.events.map((event: any) => ({
+          id: event.id || event._id,
+          icon: event.label === "Shoplifting" ? "theft" : "person",
+          title:
+            event.label === "Shoplifting"
+              ? "Shoplifting Detected"
+              : `${event.label || "Person"} Detected`,
+          location: event.location || event.cameraId || "Camera",
+          ago: event.createdAt ? timeAgo(new Date(event.createdAt)) : event.ts,
+        })),
+      );
+    }
+
+    loadActivity();
+    const interval = window.setInterval(loadActivity, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
+
   return (
     <Card>
       <CardHeader title="Recent Activity" />
       <ul className="px-5 py-4 space-y-3">
-        {ITEMS.map((it, i) => (
-          <li key={i} className="flex items-center gap-3">
+        {items.map((it, i) => (
+          <li key={it.id || i} className="flex items-center gap-3">
             <div className="grid h-7 w-7 place-items-center rounded-md bg-paper-100">
-              {ICON_FOR[it.icon]}
+              {ICON_FOR[it.icon] || ICON_FOR.person}
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-[13.5px] font-medium text-ink-900 leading-tight">

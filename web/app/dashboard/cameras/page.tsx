@@ -1,7 +1,7 @@
 import { Card, CardHeader } from "@/components/Card";
-import { LiveCameraFeed } from "@/components/LiveCameraFeed";
 import { DetectionTicker } from "@/components/DetectionTicker";
 import { CameraDotIcon } from "@/components/SpotterIcons";
+import { VideoDetectionScrubber } from "@/components/VideoDetectionScrubber";
 
 export default function CamerasPage() {
   return (
@@ -35,19 +35,19 @@ export default function CamerasPage() {
                 </div>
                 <div>
                   <h3 className="text-[18px] font-semibold text-ink-900 leading-tight">
-                    Camera 01 · Webcam
+                    Camera 01 · Side-by-side MOV
                   </h3>
                   <div className="text-[12.5px] text-ink-500">
-                    Front aisle · /dev/video0
+                    Side-by-side demo · local video source
                   </div>
                 </div>
               </div>
               <div className="text-[12px] font-mono text-ink-500 tabular-nums">
-                640 × 480 · 30fps
+                native frame · YOLO live
               </div>
             </div>
             <div className="px-4 pb-4">
-              <LiveCameraFeed />
+              <VideoDetectionScrubber />
             </div>
           </Card>
         </div>

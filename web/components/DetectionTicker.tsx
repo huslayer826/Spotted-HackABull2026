@@ -2,30 +2,11 @@
 
 import { useEffect, useState } from "react";
 import clsx from "clsx";
+import type { DetectionEvent } from "@/lib/spotter-data";
 
-type DetectionEvent = {
-  id: number;
-  ts: string;
-  trackId: number;
-  label: "Normal" | "Shoplifting" | "Monitoring";
-  confidence: number;
-};
-
-const SAMPLES: Omit<DetectionEvent, "id" | "ts">[] = [
-  { trackId: 1, label: "Monitoring", confidence: 0 },
-  { trackId: 2, label: "Monitoring", confidence: 0 },
-  { trackId: 1, label: "Normal", confidence: 0.91 },
-  { trackId: 2, label: "Normal", confidence: 0.87 },
-  { trackId: 3, label: "Monitoring", confidence: 0 },
-  { trackId: 1, label: "Normal", confidence: 0.94 },
-  { trackId: 3, label: "Shoplifting", confidence: 0.78 },
-  { trackId: 3, label: "Shoplifting", confidence: 0.84 },
-  { trackId: 2, label: "Normal", confidence: 0.92 },
-  { trackId: 1, label: "Normal", confidence: 0.96 },
-];
-
-function fmt(d: Date) {
-  return d.toLocaleTimeString("en-US", {
+function fmt(d: Date | string) {
+  const date = typeof d === "string" ? new Date(d) : d;
+  return date.toLocaleTimeString("en-US", {
     hour12: false,
     hour: "2-digit",
     minute: "2-digit",
@@ -37,38 +18,43 @@ export function DetectionTicker() {
   const [events, setEvents] = useState<DetectionEvent[]>([]);
 
   useEffect(() => {
-    let i = 0;
-    let nextId = 1;
-    const tick = () => {
-      const sample = SAMPLES[i % SAMPLES.length];
-      setEvents((prev) => {
-        const ev = { id: nextId++, ts: fmt(new Date()), ...sample };
-        return [ev, ...prev].slice(0, 14);
-      });
-      i++;
+    let cancelled = false;
+
+    async function loadEvents() {
+      const response = await fetch("/api/events?limit=14", { cache: "no-store" });
+      const payload = await response.json().catch(() => null);
+      if (!cancelled && Array.isArray(payload?.events)) {
+        setEvents(payload.events);
+      }
+    }
+
+    loadEvents();
+    const id = window.setInterval(loadEvents, 2500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
     };
-    tick();
-    const id = setInterval(tick, 1100);
-    return () => clearInterval(id);
   }, []);
 
   return (
     <div className="px-5 py-4 max-h-[420px] overflow-y-auto scroll-soft">
       <ul className="space-y-1.5 font-mono text-[12.5px] leading-6">
-        {events.map((e) => {
+        {events.map((e, index) => {
           const colorByLabel: Record<DetectionEvent["label"], string> = {
             Shoplifting: "text-crimson-500",
             Normal: "text-moss-600",
             Monitoring: "text-ink-400",
+            Person: "text-moss-600",
           };
           const tagBg: Record<DetectionEvent["label"], string> = {
             Shoplifting: "bg-crimson-500/15 text-crimson-500",
             Normal: "bg-moss-400/20 text-moss-600",
             Monitoring: "bg-paper-200 text-ink-500",
+            Person: "bg-moss-400/20 text-moss-600",
           };
           return (
-            <li key={e.id} className="flex items-start gap-2.5">
-              <span className="text-ink-400 tabular-nums">{e.ts}</span>
+            <li key={e.id || index} className="flex items-start gap-2.5">
+              <span className="text-ink-400 tabular-nums">{fmt(e.ts)}</span>
               <span className="text-ink-500 tabular-nums">
                 ID{e.trackId.toString().padStart(2, "0")}
               </span>
@@ -90,6 +76,9 @@ export function DetectionTicker() {
             </li>
           );
         })}
+        {events.length === 0 && (
+          <li className="text-ink-400">Waiting for MongoDB detection events...</li>
+        )}
       </ul>
     </div>
   );

@@ -1,0 +1,59 @@
+name: spotter_analytics
+description: Historical SPOTTER detection analytics synced from MongoDB every five minutes.
+
+tables:
+  - name: detection_events
+    description: Long-term detection and alert event record from SPOTTER cameras.
+    base_table:
+      database: SPOTTER
+      schema: ANALYTICS
+      table: DETECTION_EVENTS
+    dimensions:
+      - name: event_id
+        expr: EVENT_ID
+        data_type: string
+        description: Unique detection event identifier from MongoDB.
+      - name: camera_id
+        expr: CAMERA_ID
+        data_type: string
+        description: Camera identifier.
+      - name: location
+        expr: LOCATION
+        data_type: string
+        description: Store area or aisle where the detection happened.
+        synonyms:
+          - aisle
+          - area
+          - zone
+      - name: label
+        expr: LABEL
+        data_type: string
+        description: Detection label such as Person, Normal, Monitoring, or Shoplifting.
+      - name: searchable_text
+        expr: SEARCHABLE_TEXT
+        data_type: string
+        description: Denormalized natural-language event sentence used by Cortex Search.
+    time_dimensions:
+      - name: event_time
+        expr: TS
+        data_type: timestamp
+        description: Time the detection event occurred.
+    facts:
+      - name: confidence
+        expr: CONFIDENCE
+        data_type: number
+        description: Model confidence from 0 to 1.
+      - name: track_id
+        expr: TRACK_ID
+        data_type: number
+        description: Local person track ID scoped to one camera.
+    metrics:
+      - name: event_count
+        expr: COUNT(*)
+        description: Count of detection events.
+      - name: theft_count
+        expr: COUNT_IF(LABEL = 'Shoplifting')
+        description: Count of shoplifting detections.
+      - name: average_confidence
+        expr: AVG(CONFIDENCE)
+        description: Average model confidence.

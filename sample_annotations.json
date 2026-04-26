@@ -1,0 +1,207 @@
+{
+  "step_seconds": 0.5,
+  "people": [
+    {
+      "id": "p1",
+      "name": "Fares",
+      "color": "#ff7a1a"
+    },
+    {
+      "id": "p2",
+      "name": "Kareem",
+      "color": "#2f80ed"
+    },
+    {
+      "id": "p3",
+      "name": "Omar",
+      "color": "#39a852"
+    },
+    {
+      "id": "p4",
+      "name": "Saad",
+      "color": "#d08b33"
+    }
+  ],
+  "samples": [
+    {
+      "time_sec": 0,
+      "person_id": "p1",
+      "x": 3.0673,
+      "z": 2.2999,
+      "person_name": "Fares",
+      "dx": "",
+      "dz": "",
+      "speed_scene_units_per_sec": ""
+    },
+    {
+      "time_sec": 0,
+      "person_id": "p2",
+      "x": 2.7902,
+      "z": -1.946,
+      "person_name": "Kareem",
+      "dx": "",
+      "dz": "",
+      "speed_scene_units_per_sec": ""
+    },
+    {
+      "time_sec": 0,
+      "person_id": "p3",
+      "x": 0.3838,
+      "z": 2.1252,
+      "person_name": "Omar",
+      "dx": "",
+      "dz": "",
+      "speed_scene_units_per_sec": ""
+    },
+    {
+      "time_sec": 2.5,
+      "person_id": "p4",
+      "x": -1.7263,
+      "z": 2.331,
+      "person_name": "Saad",
+      "dx": "",
+      "dz": "",
+      "speed_scene_units_per_sec": ""
+    },
+    {
+      "time_sec": 5,
+      "person_id": "p3",
+      "x": 1.614,
+      "z": 1.9676,
+      "person_name": "Omar",
+      "dx": 1.2302,
+      "dz": -0.1576,
+      "speed_scene_units_per_sec": 0.2481
+    },
+    {
+      "time_sec": 5,
+      "person_id": "p4",
+      "x": -0.141,
+      "z": 2.784,
+      "person_name": "Saad",
+      "dx": 1.5853,
+      "dz": 0.453,
+      "speed_scene_units_per_sec": 0.6595
+    },
+    {
+      "time_sec": 9.5,
+      "person_id": "p1",
+      "x": 1.1982,
+      "z": 1.5167,
+      "person_name": "Fares",
+      "dx": -1.8691,
+      "dz": -0.7832,
+      "speed_scene_units_per_sec": 0.2133
+    },
+    {
+      "time_sec": 11,
+      "person_id": "p2",
+      "x": 3.2794,
+      "z": -0.012,
+      "person_name": "Kareem",
+      "dx": 0.4892,
+      "dz": 1.934,
+      "speed_scene_units_per_sec": 0.1814
+    },
+    {
+      "time_sec": 19,
+      "person_id": "p4",
+      "x": 1.2355,
+      "z": 1.0318,
+      "person_name": "Saad",
+      "dx": 1.3765,
+      "dz": -1.7522,
+      "speed_scene_units_per_sec": 0.1592
+    },
+    {
+      "time_sec": 24,
+      "person_id": "p1",
+      "x": 2.5219,
+      "z": 0.0603,
+      "person_name": "Fares",
+      "dx": 1.3237,
+      "dz": -1.4564,
+      "speed_scene_units_per_sec": 0.1357
+    },
+    {
+      "time_sec": 24,
+      "person_id": "p3",
+      "x": 2.941,
+      "z": 0.5644,
+      "person_name": "Omar",
+      "dx": 1.327,
+      "dz": -1.4032,
+      "speed_scene_units_per_sec": 0.1016
+    },
+    {
+      "time_sec": 24.5,
+      "person_id": "p1",
+      "x": 1.2974,
+      "z": -2.5181,
+      "person_name": "Fares",
+      "dx": -1.2245,
+      "dz": -2.5784,
+      "speed_scene_units_per_sec": 5.7088
+    },
+    {
+      "time_sec": 24.5,
+      "person_id": "p3",
+      "x": 2.1166,
+      "z": -2.1783,
+      "person_name": "Omar",
+      "dx": -0.8244,
+      "dz": -2.7427,
+      "speed_scene_units_per_sec": 5.7278
+    },
+    {
+      "time_sec": 26,
+      "person_id": "p4",
+      "x": 2.7675,
+      "z": -0.5846,
+      "person_name": "Saad",
+      "dx": 1.532,
+      "dz": -1.6164,
+      "speed_scene_units_per_sec": 0.3182
+    },
+    {
+      "time_sec": 27.5,
+      "person_id": "p4",
+      "x": 2.1138,
+      "z": -1.5983,
+      "person_name": "Saad",
+      "dx": -0.6537,
+      "dz": -1.0137,
+      "speed_scene_units_per_sec": 0.8041
+    },
+    {
+      "time_sec": 28.5,
+      "person_id": "p1",
+      "x": -3.4635,
+      "z": -2.5565,
+      "person_name": "Fares",
+      "dx": -4.7609,
+      "dz": -0.0384,
+      "speed_scene_units_per_sec": 1.1903
+    },
+    {
+      "time_sec": 28.5,
+      "person_id": "p2",
+      "x": 2.3144,
+      "z": 0.5711,
+      "person_name": "Kareem",
+      "dx": -0.965,
+      "dz": 0.5831,
+      "speed_scene_units_per_sec": 0.0644
+    },
+    {
+      "time_sec": 30,
+      "person_id": "p1",
+      "x": -0.5489,
+      "z": -2.032,
+      "person_name": "Fares",
+      "dx": 2.9146,
+      "dz": 0.5245,
+      "speed_scene_units_per_sec": 1.9743
+    }
+  ]
+}

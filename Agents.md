@@ -1,94 +1,144 @@
-# SPOTTER — Agents.md
+# SPOTTER - Agents.md
 
-A handoff document for any AI agent (or human dev) who needs to read, run, or
-extend this codebase. Read this **before** touching files. Skim the whole
-thing first; the recipes near the bottom assume you've seen the layout.
-
-The product spec (architecture, sponsor tracks, prompt templates, data model)
-lives in the team's design doc — this file is strictly about the code in this
-repo and how to work in it.
+A handoff document for any AI agent or human dev working in this repo. Read
+this before touching files. This file describes the current code, not the
+larger product spec.
 
 ---
 
-## 1. What this is
+## 1. What This Is
 
-SPOTTER turns any existing camera into an AI security analyst. The full
-production system is a 5-tier pipeline:
+SPOTTER is a retail-surveillance prototype that combines local computer vision,
+a web dashboard, incident review controls, a manual 3D movement annotator, and
+early MongoDB/Snowflake analytics plumbing.
 
+The target production story is:
+
+```text
+RTSP / video file -> YOLOv8 -> local review / Gemma / Gemini
+                  -> ElevenLabs voice deterrent
+                  -> MongoDB event write
+                  -> Snowflake analytics
+                  -> dashboard / operator action
 ```
-RTSP / video file → YOLOv8 → Gemma (local VLM) → Gemini (cloud video reasoning)
-                          → ElevenLabs voice deterrent
-                          → MongoDB event write
-                          → Snowflake analytics ETL
-                          → Mobile push
-```
 
-This repo currently contains:
+What is real in this repo today:
 
-- `main.py` + `yolov8n.pt` — the **detection prototype** (YOLOv8 + a CNN+LSTM
-  shoplifting classifier). Runs against the local webcam and draws bounding
-  boxes in an OpenCV window.
-- `web/` — the **Next.js 14 web dashboard** (the SPOTTER UI you see in the
-  designs).
-- `backend/stream.py` — a **FastAPI shim** that wraps the detection prototype
-  and exposes its annotated frames as an MJPEG HTTP stream the dashboard can
-  embed.
+- `main.py` - the heavy local OpenCV/YOLO detector. It now contains the newer
+  people-plus-item path (`detect_people`) and heuristic concealment logic. Do
+  not edit casually.
+- `backend/stream.py` - FastAPI live webcam stream. It runs YOLO tracking,
+  optionally uses `video_model.pth`, serves MJPEG, keeps recent detections, and
+  can write `detection_events`, `alerts`, and `cameras` to MongoDB.
+- `web/` - Next.js dashboard. It still has fallback demo data, but it now reads
+  Mongo-backed API routes when `MONGODB_URI` is configured.
+- `web/components/IncidentReviewPanel.tsx` - operator review flow with camera
+  context plus `Broadcast`, `False alarm`, and `Escalate` actions.
+- `web/lib/alert-broadcast.ts` - Gemma prompt generation plus ElevenLabs TTS
+  for the broadcast action.
+- `serve_annotator.py`, `annotator.html`, `annotator.js`, `annotator.css` -
+  local 3D movement annotator for manually placing people on the store scene
+  against CCTV frames.
+- `cctv_review.py` - offline saved-video scanner/exporter. It calls
+  `main.detect_people`, clusters candidate alert moments, exports review clips,
+  and can optionally ask Gemini for structured review.
+- `3d analysis/gemini_identity_anchors.py` - Gemini-assisted cross-camera identity-anchor
+  review. This is not the shoplifting verifier.
+- `snowflake/` plus `web/scripts/sync-mongo-to-snowflake.mjs` - early Snowflake
+  analytics schema, semantic model, and Mongo-to-Snowflake sync.
 
-Everything else from the spec (Gemma, Gemini, ElevenLabs, MongoDB, Snowflake,
-Auth, mobile app) is **not yet implemented in this repo**. The dashboard
-fakes that data with mocks today; the recipes in §7 explain where to swap
-real data in.
+Still not implemented as a full production system:
+
+- Auth/session gating.
+- Mobile app and push notifications.
+- Real RTSP/camera fleet management.
+- A durable worker deployment for ETL.
+- Complete Gemma/Gemini/ElevenLabs production orchestration.
 
 ---
 
-## 2. Repo layout
+## 2. Repo Layout
 
-```
-hackabull2026/
-├── Agents.md                  ← this file
-├── README.md                  ← one-liner ("python main.py 2>/dev/null")
-├── main.py                    ← original YOLO + CNN+LSTM webcam demo (do not edit casually)
-├── yolov8n.pt                 ← YOLOv8 nano weights (~6 MB, committed)
+```text
+New project/
+├── Agents.md
+├── README.md
+├── main.py                         # heavy local detector; includes detect_people()
+├── main.legacy-webcam-ui.js        # legacy browser/webcam UI artifact
+├── yolov8n.pt                      # YOLOv8 nano weights
+├── requirements.txt                # local CV / Gemini helper deps
+├── gem.py                          # batch CNN+LSTM video classifier script
+├── cctv_review.py                  # offline review clip scanner/exporter
+├── 3d analysis/                    # offline track stitching and spatial analysis helpers
+│   ├── gemini_identity_anchors.py  # Gemini identity matching helper
+│   ├── overlay_track_ids.py        # identity/track overlay utility
+│   ├── spatial_map_from_tracklets.py
+│   ├── stitch_tracklets_overlay.py # video overlay/stitching utility
+│   ├── render_2d_with_footage.py
+│   └── render_middle_layout_2d_tracking.py
+├── serve_annotator.py              # local server for annotator + frame endpoint
+├── annotator.html/js/css           # 3D movement annotator
+├── watch.html/js/css               # browser viewing/demo artifact
+├── index.html/main.js/styles.css   # standalone browser artifact
+├── sample_annotations.json         # named Saad/Kareem/Fares/Omar samples
+├── annotated_outputs/              # generated videos/contact sheets/CSVs
+├── review_outputs/                 # generated cctv_review clips/manifests
+├── track_snapshots/                # generated person crop/snapshot artifacts
+├── shop-threejs-clean/             # standalone Three.js store scene
 │
 ├── backend/
-│   ├── stream.py              ← FastAPI MJPEG wrapper of main.py's detection
-│   └── requirements.txt
+│   ├── stream.py                   # FastAPI MJPEG + detections + Mongo writes
+│   ├── requirements.txt
+│   ├── .env.example
+│   └── .env                        # local secrets; do not commit
 │
-└── web/                       ← Next.js 14 App Router app
-    ├── package.json
-    ├── tsconfig.json
-    ├── tailwind.config.ts     ← design tokens (colors, fonts, shadows)
-    ├── next.config.js
-    ├── postcss.config.js
+├── snowflake/
+│   ├── schema.sql                  # detection_events + Cortex Search service
+│   └── semantic_model.yaml          # Cortex Analyst semantic model
+│
+└── web/
     ├── app/
-    │   ├── layout.tsx         ← root layout, Inter / Fraunces / JetBrains Mono
-    │   ├── page.tsx           ← redirects "/" → "/dashboard"
-    │   ├── globals.css        ← palette CSS vars, paper-grain, lidar-grid, animations
+    │   ├── api/
+    │   │   ├── alerts/route.ts
+    │   │   ├── alerts/broadcast/route.ts
+    │   │   ├── alerts/decision/route.ts
+    │   │   ├── analytics/chat/route.ts
+    │   │   ├── analytics/metrics/route.ts
+    │   │   ├── analytics/query/route.ts
+    │   │   ├── cameras/route.ts
+    │   │   ├── db/health/route.ts
+    │   │   ├── elevenlabs/voices/route.ts
+    │   │   ├── events/route.ts
+    │   │   ├── snowflake/health/route.ts
+    │   │   ├── snowflake/sync/route.ts
+    │   │   └── summary/route.ts
     │   └── dashboard/
-    │       ├── layout.tsx     ← Sidebar + TopBar shell
-    │       ├── page.tsx       ← main dashboard (LIDAR + alerts + stats)
-    │       ├── cameras/page.tsx     ← real YOLO live footage
-    │       ├── alerts/page.tsx      ← <ComingSoon />
-    │       ├── events/page.tsx      ← <ComingSoon />
-    │       ├── analytics/page.tsx   ← <ComingSoon />
-    │       └── settings/page.tsx    ← <ComingSoon />
-    └── components/
-        ├── Logo.tsx
-        ├── Sidebar.tsx        ← nav with active-route highlighting
-        ├── TopBar.tsx         ← search + notifications + admin chip
-        ├── Card.tsx           ← <Card> + <CardHeader> primitives
-        ├── SpotterIcons.tsx   ← inline SVG icons (RunningIcon, JarIcon, BoxIcon, PersonIcon, CameraDotIcon)
-        ├── RangePicker.tsx    ← Live · 24H · 7D · 30D pill segmented control
-        ├── LiveLidarView.tsx  ← 3D LIDAR card; pinned colored markers as HTML overlay
-        ├── LidarScene.tsx     ← react-three-fiber scene (dynamic-imported, ssr:false)
-        ├── ActiveAlerts.tsx   ← left-bordered alert cards w/ dark thumbnails
-        ├── RecentActivity.tsx ← icon + title + "Nm ago" list
-        ├── AlertsToday.tsx    ← 23 + ↑35% + SVG sparkline
-        ├── EventsSummary.tsx  ← SVG donut chart
-        ├── LiveCameraFeed.tsx ← <img> bound to backend MJPEG, with offline state
-        ├── DetectionTicker.tsx← right-side detection log on the cameras page
-        └── ComingSoon.tsx     ← shared placeholder for unbuilt routes
+    │       ├── page.tsx            # dashboard + incident review
+    │       ├── cameras/page.tsx
+    │       ├── alerts/page.tsx
+    │       ├── events/page.tsx
+    │       ├── analytics/page.tsx
+    │       └── settings/page.tsx
+    ├── components/
+    │   ├── LidarScene.tsx          # Three.js store scene + demo tracks
+    │   ├── LiveLidarView.tsx       # dashboard card + moving named dots
+    │   ├── LiveCameraFeed.tsx      # MJPEG stream + offline state
+    │   ├── IncidentReviewPanel.tsx # operator actions
+    │   ├── AnalyticsBrain.tsx
+    │   └── settings/ElevenLabsVoiceSettings.tsx
+    ├── hooks/use-live-incident.ts
+    ├── lib/
+    │   ├── mongodb.ts
+    │   ├── spotter-data.ts
+    │   ├── alert-broadcast.ts
+    │   ├── snowflake.ts
+    │   ├── snowflake-sync.ts
+    │   └── analytics-prompts.ts
+    └── scripts/sync-mongo-to-snowflake.mjs
 ```
+
+Generated artifacts are useful for demos, but do not treat them as source of
+truth unless the user asks about a specific output.
 
 ---
 
@@ -99,358 +149,300 @@ hackabull2026/
 ```bash
 cd web
 npm install
-npm run dev          # http://localhost:3000  → redirects to /dashboard
+npm run dev
 ```
 
-### YOLO backend (only needed for the Cameras tab)
+Open `http://localhost:3000/dashboard`.
+
+The web app is currently on Next `16.x` / React `19.x` in `package.json`, even
+though older notes may say Next 14. Trust `package.json`.
+
+### YOLO Backend
 
 ```bash
 cd backend
 pip install -r requirements.txt
-python stream.py     # http://localhost:8000  (uvicorn)
+python stream.py
 ```
 
-The dashboard's Cameras tab polls `/health` on the backend every 4 seconds.
-If the backend is down it shows a "Stream offline" state with a Retry button;
-if it's up it embeds `/video_feed` as an MJPEG `<img>`.
+Backend endpoints:
 
-Override the stream URL with `NEXT_PUBLIC_STREAM_URL` if you move the
-backend off `localhost:8000`.
-
----
-
-## 4. Frontend tour
-
-### Stack
-- **Next.js 14.2** (App Router, RSC)
-- **Tailwind CSS 3.4** (custom palette, see §5)
-- **TypeScript**
-- **lucide-react** for line icons (and `components/SpotterIcons.tsx` for the
-  custom theft / jar / box / person / camera glyphs)
-- **react-three-fiber + drei + three** for the 3D LIDAR placeholder
-
-### Routes
-| Path | File | What it does |
-|---|---|---|
-| `/` | `app/page.tsx` | Server-side `redirect("/dashboard")` |
-| `/dashboard` | `app/dashboard/page.tsx` | LIDAR view, alerts, stats |
-| `/dashboard/cameras` | `app/dashboard/cameras/page.tsx` | Real YOLO footage + ticker |
-| `/dashboard/alerts` | `…/alerts/page.tsx` | `<ComingSoon />` |
-| `/dashboard/events` | `…/events/page.tsx` | `<ComingSoon />` |
-| `/dashboard/analytics` | `…/analytics/page.tsx` | `<ComingSoon />` |
-| `/dashboard/settings` | `…/settings/page.tsx` | `<ComingSoon />` |
-
-The shell (sidebar + top bar) lives in `app/dashboard/layout.tsx` and applies
-to every dashboard route automatically.
-
-### Server vs client components
-- **Pages** (`page.tsx`): server components by default. Compose layouts and
-  pull data here once we have it (see recipes in §7).
-- **Interactive components** carry `"use client"` at the top. The current
-  client components are: `Sidebar`, `RangePicker`, `LiveLidarView` (because
-  it dynamically imports a 3D canvas), `LidarScene`, `LiveCameraFeed`,
-  `DetectionTicker`. Everything else renders server-side.
-
-### State
-There is no global state library. Each interactive component owns its own
-`useState`. When real data is wired up, use either:
-- Server components fetching at request time (RSC + `fetch`), or
-- A SWR / React Query hook in the client component that needs it.
-
-Don't reach for Redux/Zustand unless something forces it.
-
----
-
-## 5. Design system
-
-All design tokens live in **`web/tailwind.config.ts`**. Use Tailwind classes;
-do not hardcode hex values in components.
-
-### Palette
-| Tailwind | Hex | Used for |
-|---|---|---|
-| `paper-50` | `#FBF7F2` | Card surfaces |
-| `paper-100` | `#F5EEE5` | Page background |
-| `paper-200` | `#EDE3D5` | Subtle hover, pill backgrounds |
-| `paper-300` | `#E2D5C2` | Borders on warm surfaces |
-| `ink-900` | `#1C1814` | Primary text |
-| `ink-700` | `#3F362C` | Secondary text |
-| `ink-500` | `#6B6055` | Muted text |
-| `ink-400` | `#8C8175` | Placeholder, axis labels |
-| `rust-100…700` | warm rust scale | Accent: brand, active nav, CTA, "Grabbed" alerts |
-| `amber-400/500` | `#E2A24C` / `#D08B33` | "Pocketed" alerts |
-| `moss-400…600` | muted greens | "Person detected", success |
-| `crimson-500` | `#9B2D24` | "Theft" alerts (highest severity) |
-
-The four semantic alert colors are intentional and the icons in
-`SpotterIcons.tsx` are paired with them. Don't invent a fifth severity.
-
-### Typography
-- `font-sans` → Inter (UI text, numbers)
-- `font-serif` → Fraunces (was used for the landing hero — currently only
-  loaded in case we add a marketing route later; safe to delete from
-  `app/layout.tsx` if you never reuse it)
-- `font-mono` → JetBrains Mono (terminals, log lines, timestamps)
-
-Set in `app/layout.tsx`. Tailwind exposes them as `font-sans / font-serif /
-font-mono`.
-
-### Custom utilities (in `app/globals.css`)
-- `.paper-grain` — radial-dot grain over warm backgrounds (used on dashboard
-  surface)
-- `.lidar-grid` — cross-hatched grid (reserved for future 3D backgrounds)
-- `.scroll-soft` — slim warm scrollbar, used on `DetectionTicker`
-- `.cursor-blink` — blinking caret (was on the landing terminal)
-- `.pulse-dot` — gentle scale/opacity pulse, used on live indicators
-
-### Card primitive
-Always wrap dashboard widgets in `<Card>` from `components/Card.tsx`:
-
-```tsx
-<Card>
-  <CardHeader title="My widget" action={<button>…</button>} />
-  <div className="px-6 pb-5">…</div>
-</Card>
-```
-
-`<Card>` provides the rounded warm surface + 1px border + soft shadow. Do
-not roll your own card.
-
-### Icons
-- **Lucide** for generic icons (Bell, Search, Maximize2, ArrowUp, etc.).
-- **`components/SpotterIcons.tsx`** for the four event types and the camera
-  glyph. To add a new event-type icon, add another inline SVG component
-  there, then map it in `ActiveAlerts.tsx` / `RecentActivity.tsx` /
-  `LiveLidarView.tsx`.
-
----
-
-## 6. Backend tour (`backend/stream.py`)
-
-### What it does
-Imports YOLOv8 from ultralytics, opens the system webcam, runs detection +
-tracking on every frame at 320 px, draws boxes + labels with OpenCV, and
-serves the latest annotated JPEG over HTTP.
-
-If `video_model.pth` (the CNN+LSTM shoplifting classifier from `main.py`)
-is present at the repo root it will additionally classify each track as
-`Normal` or `SHOPLIFTING`. If it's missing the backend logs that and falls
-back to YOLO-only person detection, so the stream always works.
-
-### Endpoints
 | Method | Path | Purpose |
-|---|---|---|
-| GET | `/health` | JSON: `{ ok, device, capture_alive, classifier }`. Polled by the dashboard to decide between live and "offline" UI. |
-| GET | `/video_feed` | `multipart/x-mixed-replace; boundary=frame` MJPEG stream. Embed via `<img src="…">`. |
+| --- | --- | --- |
+| `GET` | `/health` | Liveness, device, classifier mode, Mongo status |
+| `GET` | `/video_feed` | MJPEG annotated webcam stream |
+| `GET` | `/detections?limit=25` | Recent in-memory detection events |
 
-### Threading model
-The capture + inference loop runs on a **single background thread** started
-at FastAPI's `startup` event. It writes the latest JPEG bytes into a
-process-global `_latest_jpeg` under a `threading.Lock`. The MJPEG generator
-just yields whatever's currently in that slot, so consumers don't compete
-for the camera and frames are dropped gracefully under back-pressure.
+Useful env vars:
 
-Camera index is `SPOTTER_CAMERA` env var (defaults to `0`).
+- `SPOTTER_CAMERA` - local camera index, default `0`.
+- `SPOTTER_CAMERA_ID` - event camera id, default `camera-01`.
+- `SPOTTER_CAMERA_LOCATION` - displayed location, default `Front aisle`.
+- `MONGODB_URI` / `MONGODB_DB` - enables event/camera/alert persistence.
 
----
+### 3D Movement Annotator
 
-## 7. What's mocked (and where to swap real data in)
-
-Everything below renders from in-file constants. When real data is
-available, replace these — file path + line range given.
-
-| Widget | File | Where the mock data lives |
-|---|---|---|
-| Active Alerts list | `components/ActiveAlerts.tsx` | `const ALERTS` near top |
-| Recent Activity list | `components/RecentActivity.tsx` | `const ITEMS` near top |
-| Alerts Today number / sparkline | `components/AlertsToday.tsx` | `const POINTS` (24 hourly buckets) |
-| Events Summary donut | `components/EventsSummary.tsx` | `const SLICES` |
-| LIDAR markers + count | `components/LiveLidarView.tsx` | `const MARKERS`, "People in area" hardcoded `5` |
-| Detection ticker rows | `components/DetectionTicker.tsx` | `const SAMPLES` + `setInterval` loop |
-| Range picker (Live/24H/7D/30D) | `components/RangePicker.tsx` | Internal `useState` only — no fetch yet |
-| Notifications badge ("3") | `components/TopBar.tsx` | Hardcoded |
-| Admin chip ("Admin · admin@spotter.ai · K") | `components/TopBar.tsx` | Hardcoded |
-
-The Cameras tab is **not** mocked — it's a real video stream from
-`backend/stream.py` over MJPEG. Only the right-side `DetectionTicker` is
-fake (it doesn't yet read from the backend).
-
----
-
-## 8. Recipes — how to extend
-
-### 8.1 Add a new dashboard page
-
-1. Create `web/app/dashboard/<slug>/page.tsx`:
-   ```tsx
-   export default function MyPage() {
-     return (
-       <div className="space-y-6">
-         <div>
-           <h1 className="text-[34px] font-semibold tracking-tight text-ink-900">
-             My Page
-           </h1>
-           <p className="text-[15px] text-ink-500 mt-1">Subtitle</p>
-         </div>
-         {/* widgets in <Card>s */}
-       </div>
-     );
-   }
-   ```
-2. Add it to the `NAV` array in `components/Sidebar.tsx`. Pick an icon from
-   `lucide-react`. Active-route highlighting works automatically.
-
-That's it. No router config, no manifest.
-
-### 8.2 Replace mocked alerts with real data from a backend
-
-Two clean paths.
-
-**A — Server component fetching at request time (recommended for paginated
-lists):**
-
-```tsx
-// components/ActiveAlerts.tsx — drop "use client"
-export async function ActiveAlerts() {
-  const res = await fetch(`${process.env.API_URL}/events?limit=4&status=new`, {
-    cache: "no-store",
-  });
-  const alerts = await res.json();
-  // …render
-}
+```bash
+python serve_annotator.py
 ```
 
-Then `await <ActiveAlerts />` from the dashboard page (also a server
-component).
+Open `http://127.0.0.1:53871/annotator.html`.
 
-**B — Client component with polling/WebSocket (recommended for live data):**
+The annotator defaults to
+`/Users/user/Downloads/cctv_gemini_anchor_full_04m00s_to_13m20s.mp4`. It does
+not rely on browser-native video playback for the core loop; the server exposes
+OpenCV-backed `/video_meta` and `/video_frame?t=...` endpoints so the UI can
+request exact frames. It also supports `/downloads/...` range requests for local
+files.
 
-Add `"use client"`, wrap the existing render in a `useEffect` that opens a
-`WebSocket("ws://localhost:8000/events/stream")` and pushes incoming events
-into local state. The MJPEG approach for the camera tab is the same idea —
-nothing in the UI needs to change beyond the data source.
+### Offline CCTV Review
 
-### 8.3 Replace the LIDAR placeholder with real 3D data
+`cctv_review.py` scans a saved video using `main.detect_people`, finds local
+alert/candidate moments, clusters nearby timestamps, exports clips under
+`review_outputs/`, and can optionally call Gemini for JSON review. Use this for
+saved CCTV files, not the live webcam stream.
 
-`components/LidarScene.tsx` is the three.js scene. The current scene draws
-a wireframe room with two rows of shelves and a point-cloud floor. To swap
-in real data:
-
-1. Keep `LiveLidarView.tsx` as the wrapper — it already provides the warm
-   card surface, the legend, the "People in area" pill, and the
-   HTML-overlay markers.
-2. Replace the contents of `<SceneRig />` in `LidarScene.tsx` with whatever
-   geometry your floor plan / point-cloud data produces.
-3. The HTML markers in `LiveLidarView.tsx` are positioned with raw `%`
-   coords. To make them follow real 3D positions, use drei's `<Html>` or
-   project world coords to screen space inside the canvas.
-
-### 8.4 Add a new event-type alert
-
-1. Pick a color: a Tailwind token already in the palette (`crimson-500`,
-   `rust-400`, `amber-400`, `moss-500`, …).
-2. Add the icon to `components/SpotterIcons.tsx` (inline SVG, copy the
-   shape of one of the existing ones).
-3. Add a key to the `TYPE_STYLES` map in `components/ActiveAlerts.tsx`
-   (border + iconWrap + icon).
-4. If the new type also belongs in the LIDAR view, add it to
-   `MARKER_COLORS` and `MarkerIcon` in `components/LiveLidarView.tsx`,
-   and to the `LEGEND` array there.
-5. If it belongs in Recent Activity, add a key to `ICON_FOR` in
-   `components/RecentActivity.tsx`.
-
-### 8.5 Wire up the detection ticker to the real YOLO backend
-
-`backend/stream.py` doesn't yet emit a structured event stream — only the
-MJPEG. To make `DetectionTicker.tsx` real:
-
-1. In `stream.py`, on each frame after the YOLO loop, push a
-   `{ts, track_id, label, confidence}` object into a `queue.Queue` shared
-   with a new endpoint.
-2. Add `GET /detections/stream` as a Server-Sent Events endpoint
-   (`StreamingResponse` with `text/event-stream`).
-3. Replace the `setInterval(tick, 1100)` block in `DetectionTicker.tsx`
-   with `new EventSource("http://localhost:8000/detections/stream")` and
-   push each parsed event into the existing `events` state.
-
-The wire format is open — the component already understands
-`Normal | Shoplifting | Monitoring` labels with confidences.
-
-### 8.6 Add auth
-
-When you're ready for real auth, do it in `app/dashboard/layout.tsx`:
-gate the entire dashboard tree behind a session check (NextAuth's
-`auth()` helper or your equivalent). The TopBar is the natural place to
-read user info from the session and render the chip.
-
----
-
-## 9. Conventions
-
-- **Tailwind first.** No CSS modules, no styled-components. Custom utilities
-  go in `app/globals.css` only when a Tailwind expression would be
-  unreadable.
-- **Numbers use `tabular-nums`** — counts, timestamps, percentages.
-  Keeps tickers from jittering.
-- **Card chrome is consistent.** `<Card>` + `<CardHeader>`. Padding inside
-  is `px-6 py-5` for content, `px-6 pt-5 pb-4` when followed by a list.
-- **Icons** are `h-4 w-4` (small), `h-5 w-5` (default), `h-[18px] w-[18px]`
-  (sidebar) — see Sidebar.tsx for the established pattern.
-- **No emoji** in source unless the user explicitly asks. Use Lucide or
-  SpotterIcons.
-- **Server components by default.** Add `"use client"` only when the
-  component uses state, effects, refs, or browser-only APIs.
-- **Mock data lives at the top of the component** that uses it (a `const`
-  at module scope), never in a separate "data" folder. When real data
-  lands, the swap is one local change.
-
----
-
-## 10. Things deliberately out of scope (right now)
-
-These come from the product spec but are **not in this repo yet** — don't
-silently invent them, and don't reach for them when extending:
-
-- Gemma local VLM (Ollama)
-- Gemini 2.5 Pro confirmation calls
-- ElevenLabs voice deterrent
-- MongoDB Atlas events/cameras/GridFS
-- Snowflake Cortex Search / Analyst / Complete
-- ETL worker (Mongo → Snowflake)
-- Auth (NextAuth / JWT)
-- Mobile app (React Native + Expo)
-- 3D coverage feature (floor-plan upload + Gemini spatial analysis)
-
-When you implement any of these, follow the recipes above for where they
-plug into the dashboard, and update §7 ("what's mocked") so the next agent
-knows the data is real.
-
----
-
-## 11. Don't break
-
-- `main.py` and `yolov8n.pt` are the original detection prototype. Don't
-  edit `main.py` unless explicitly asked — `backend/stream.py` is the place
-  to add HTTP/streaming concerns.
-- The four event-type colors (theft / pocket / grab / person) are
-  load-bearing across `LiveLidarView`, `ActiveAlerts`, `RecentActivity`,
-  and `EventsSummary`. Keep them in sync.
-- The dashboard layout is a 3-col grid where the left 2/3 stacks LIDAR +
-  stats and the right 1/3 stacks alerts + recent activity. Resist the urge
-  to "simplify" it back to two stacked rows — the user has already
-  reviewed and approved this layout.
-
----
-
-## 12. Build verification
-
-Before declaring work done:
+### Snowflake Sync
 
 ```bash
 cd web
-npx next build       # must finish without TS errors
+npm run sync:snowflake
 ```
 
-There are no tests in this repo yet. If you add interactive logic worth
-testing, prefer Playwright (run against `npm run dev`) over unit tests of
-React components — the components are mostly view code.
+Required env:
+
+- `MONGODB_URI`
+- `SNOWFLAKE_ACCOUNT`
+- `SNOWFLAKE_USERNAME`
+- `SNOWFLAKE_PASSWORD`
+- `SNOWFLAKE_WAREHOUSE`
+- optional `SNOWFLAKE_DATABASE`, `SNOWFLAKE_SCHEMA`, `SNOWFLAKE_ROLE`
+
+Apply `snowflake/schema.sql` before relying on sync or Cortex Search.
+
+---
+
+## 4. Detection And Review Paths
+
+There are several model/review paths. Keep them distinct:
+
+| Path | Files | What it does |
+| --- | --- | --- |
+| Live local detection | `main.py`, `backend/stream.py` | YOLO person tracking. Optional CNN+LSTM if `video_model.pth` exists. |
+| Item/concealment analysis | `main.py::detect_people` | People + item detection, association, motion/body-region heuristics, possible concealment events. |
+| Offline review | `cctv_review.py` | Samples a saved video, calls `main.detect_people`, exports clips/manifests, optionally asks Gemini. |
+| Batch classifier demo | `gem.py` | Iterates local normal/shoplift folders with CNN+LSTM. Paths may be machine-specific. |
+| Cross-camera identity | `3d analysis/overlay_track_ids.py`, `3d analysis/gemini_identity_anchors.py` | Person identity continuity and Gemini identity correction. Not shoplifting verification. |
+| Manual ground truth | `annotator.*`, `serve_annotator.py`, `sample_annotations.json` | Place named people (`Saad`, `Kareem`, `Fares`, `Omar`) in the 3D store scene and export movement samples. |
+
+Important: `main.py` does not call Gemini. Gemini review lives in
+`cctv_review.py` and `3d analysis/gemini_identity_anchors.py`, for different purposes.
+
+---
+
+## 5. Frontend Tour
+
+### Stack
+
+- Next.js App Router.
+- TypeScript.
+- Tailwind CSS.
+- lucide-react.
+- react-three-fiber / drei / three.
+- MongoDB driver and Snowflake SDK on the server side.
+
+### Dashboard Routes
+
+| Path | File | Current status |
+| --- | --- | --- |
+| `/` | `web/app/page.tsx` | Redirects to `/dashboard`. |
+| `/dashboard` | `web/app/dashboard/page.tsx` | Main view: LIDAR, alerts, activity, stats, incident review. |
+| `/dashboard/cameras` | `web/app/dashboard/cameras/page.tsx` | Live MJPEG stream + detection ticker. |
+| `/dashboard/alerts` | `web/app/dashboard/alerts/page.tsx` | Basic page / placeholder depending on current branch state. |
+| `/dashboard/events` | `web/app/dashboard/events/page.tsx` | Basic page / placeholder depending on current branch state. |
+| `/dashboard/analytics` | `web/app/dashboard/analytics/page.tsx` | Analytics surface with Snowflake-oriented components. |
+| `/dashboard/settings` | `web/app/dashboard/settings/page.tsx` | Includes settings work such as ElevenLabs voice config. |
+
+### Data Flow
+
+- `web/lib/spotter-data.ts` defines shared types and fallback data.
+- `web/app/api/alerts/route.ts` reads Mongo `alerts`, or returns fallback.
+- `web/app/api/events/route.ts` reads Mongo `detection_events`, or returns empty fallback.
+- `web/app/api/cameras/route.ts` reads Mongo `cameras`, or returns fallback.
+- `web/app/api/summary/route.ts` computes counts/slices from Mongo, or returns fallback.
+- `web/app/api/db/health/route.ts` pings Mongo.
+- `web/app/api/snowflake/health/route.ts` pings Snowflake.
+- `web/app/api/snowflake/sync/route.ts` triggers one Mongo-to-Snowflake sync.
+- `web/app/api/analytics/metrics/route.ts` reads Snowflake aggregate metrics.
+- `web/app/api/analytics/query/route.ts` asks Cortex Complete for read-only SQL,
+  validates it, then executes it.
+- `web/app/api/analytics/chat/route.ts` uses Cortex Search plus Cortex Complete
+  to answer historical detection questions.
+- `web/app/api/elevenlabs/voices/route.ts` creates an ElevenLabs voice from
+  uploaded samples.
+- `web/hooks/use-live-incident.ts` polls alerts/events and chooses the active incident.
+- `IncidentReviewPanel` calls:
+  - `/api/alerts/broadcast` for Gemma + ElevenLabs audio.
+  - `/api/alerts/decision` for false-alarm/escalation status updates.
+
+The dashboard is no longer purely mocked. It gracefully falls back when Mongo or
+other services are not configured.
+
+### LIDAR Demo State
+
+`LiveLidarView.tsx` and `LidarScene.tsx` currently include named demo tracks for
+`Saad`, `Kareem`, `Fares`, and `Omar` based on manual annotation samples. The
+goal is a convincing live demo, not calibrated real-world camera geometry.
+
+If the user complains that movement is wrong, inspect both files. There are
+currently two visual layers:
+
+- Three.js scene-level people in `LidarScene.tsx`.
+- HTML overlay moving dots/labels in `LiveLidarView.tsx`.
+
+Keep them consistent or remove one layer deliberately.
+
+---
+
+## 6. Design System And UI Rules
+
+- Use Tailwind classes and existing tokens in `web/tailwind.config.ts`.
+- Use `<Card>` and `<CardHeader>` for dashboard widgets.
+- Keep the approved dashboard layout: left two-thirds LIDAR/stats/review, right
+  rail alerts/activity. Do not simplify it into stacked rows unless asked.
+- Use lucide icons for generic UI.
+- Use `SpotterIcons.tsx` for event-type icons.
+- Keep the four semantic alert colors in sync across:
+  - `ActiveAlerts.tsx`
+  - `RecentActivity.tsx`
+  - `LiveLidarView.tsx`
+  - `EventsSummary.tsx`
+- Use `tabular-nums` for timestamps, counts, and percentages.
+- Do not add emoji to source.
+- Server components by default; add `"use client"` only for state/effects/refs or
+  browser APIs.
+
+---
+
+## 7. Environment Files
+
+Use examples, not committed secrets:
+
+- `backend/.env.example`
+- `web/.env.example`
+
+Expected web env includes:
+
+- `MONGODB_URI`, `MONGODB_DB`
+- `NEXT_PUBLIC_STREAM_URL`
+- `GEMMA_API_URL`, `GEMMA_MODEL`
+- `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`
+- Snowflake variables listed above
+
+Expected Python env includes:
+
+- `MONGODB_URI`, `MONGODB_DB`
+- `GEMINI_API_KEY` or `GOOGLE_API_KEY` for Gemini scripts
+- camera vars listed in the backend quickstart
+
+Never commit `.env` files.
+
+---
+
+## 8. Common Recipes
+
+### Wire a Dashboard Widget to Real Data
+
+Prefer the existing API route pattern:
+
+1. Put shared types/fallbacks in `web/lib/spotter-data.ts`.
+2. Add or extend a route under `web/app/api/.../route.ts`.
+3. Have client widgets poll the local API if they need live updates.
+4. Preserve fallback data so the demo still runs without Mongo.
+
+### Add a New Event Type
+
+1. Add the type to `AlertType` in `web/lib/spotter-data.ts`.
+2. Add style/icon mappings in `ActiveAlerts.tsx`, `RecentActivity.tsx`, and any
+   LIDAR/summary component that displays it.
+3. Keep the palette to the existing semantic set unless the user explicitly
+   approves a fifth severity.
+4. Update Mongo write paths if the backend should emit the new type.
+
+### Add Structured Detection Streaming
+
+`backend/stream.py` currently exposes recent detections with polling
+(`/detections`). If you need real streaming:
+
+1. Add a queue or pub/sub list inside `backend/stream.py`.
+2. Push `{ts, track_id, label, confidence, bbox}` after each YOLO/classifier update.
+3. Expose an SSE endpoint such as `/detections/stream`.
+4. Update `DetectionTicker.tsx` to use `EventSource`.
+
+### Use Gemini for Shoplifting Review
+
+Do not add Gemini calls to the live frame loop. Use `cctv_review.py` for saved
+video review clips. That script is the right boundary for slower cloud reasoning.
+
+### Use Gemini for Cross-Camera Identity
+
+Use `3d analysis/gemini_identity_anchors.py`. It exports frames at selected timestamps and
+asks Gemini to return canonical person descriptions and label corrections.
+
+### Update the Annotator
+
+Work in:
+
+- `annotator.html`
+- `annotator.js`
+- `annotator.css`
+- `serve_annotator.py`
+
+The annotator uses Three.js directly from ESM URLs, not the Next app. It stores
+samples in localStorage and can import/export JSON/CSV. Keep `sample_annotations.json`
+aligned when changing the sample/demo identity set.
+
+---
+
+## 9. Things To Avoid
+
+- Do not casually refactor `main.py`. It is the source of both live and offline
+  CV behavior and has shared global tracking state.
+- Do not confuse `analyze_frame()` / old people-only classifier paths with
+  `detect_people()` / newer people-plus-item concealment analysis.
+- Do not claim MongoDB, Snowflake, Gemma, Gemini, or ElevenLabs are active unless
+  the relevant env vars are configured and the code path has been run.
+- Do not treat manual LIDAR annotations as calibrated camera geometry.
+- Do not edit generated artifacts in `annotated_outputs/`, `review_outputs/`,
+  or `track_snapshots/` as if they are app source.
+- Do not replace the dashboard with a landing page. This repo is currently an
+  operator tool/demo, not marketing.
+
+---
+
+## 10. Build Verification
+
+Before declaring frontend work done:
+
+```bash
+cd web
+npx next build
+```
+
+For backend-only work:
+
+```bash
+cd backend
+python stream.py
+curl http://localhost:8000/health
+```
+
+For annotator work:
+
+```bash
+python serve_annotator.py
+```
+
+Then open `http://127.0.0.1:53871/annotator.html`, load `Sample`, scrub/play,
+and verify exported JSON still contains `time`, `person_id`, `person_name`,
+`x`, `z`, `dx`, `dz`, and speed fields.

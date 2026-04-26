@@ -3,11 +3,18 @@
 import { useEffect, useState } from "react";
 import clsx from "clsx";
 import { Maximize2, RefreshCw, WifiOff } from "lucide-react";
+import type { LiveIncident } from "@/lib/spotter-data";
 
 const STREAM_URL =
   process.env.NEXT_PUBLIC_STREAM_URL || "http://localhost:8000/video_feed";
 
-export function LiveCameraFeed() {
+export function LiveCameraFeed({
+  incident,
+  compact = false,
+}: {
+  incident?: LiveIncident;
+  compact?: boolean;
+}) {
   const [bust, setBust] = useState(0);
   const [online, setOnline] = useState<boolean | null>(null);
 
@@ -33,7 +40,12 @@ export function LiveCameraFeed() {
   }, []);
 
   return (
-    <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl bg-ink-900">
+    <div
+      className={clsx(
+        "relative aspect-[3/2] w-full overflow-hidden rounded-xl bg-ink-900",
+        incident?.alert && "ring-2 ring-crimson-500 ring-offset-2 ring-offset-paper-50",
+      )}
+    >
       {online === false ? (
         <div className="absolute inset-0 grid place-items-center">
           <div className="text-center text-paper-200 max-w-md px-6">
@@ -62,7 +74,7 @@ export function LiveCameraFeed() {
           key={bust}
           src={`${STREAM_URL}?t=${bust}`}
           alt="Live camera feed with YOLO detections"
-          className="absolute inset-0 h-full w-full object-cover"
+          className="absolute inset-0 h-full w-full object-contain"
         />
       )}
 
@@ -76,28 +88,30 @@ export function LiveCameraFeed() {
               : "bg-crimson-500 pulse-dot",
           )}
         />
-        {online === false ? "OFFLINE" : "REC · LIVE"}
+        {online === false ? "OFFLINE" : incident?.alert ? "INCIDENT · LIVE" : "REC · LIVE"}
       </div>
 
       {/* Top-right: pipeline pill */}
       <div className="absolute top-4 right-4 inline-flex items-center gap-2 rounded-full bg-ink-900/70 backdrop-blur-sm px-3 py-1.5 text-[11px] font-mono tracking-wider text-paper-100">
-        YOLOv8n · CNN+LSTM
+        YOLOv8n · native frame
       </div>
 
       {/* Bottom-right: full screen */}
-      <button
+      {!compact && <button
         className="absolute bottom-4 right-4 grid h-9 w-9 place-items-center rounded-md bg-ink-900/70 backdrop-blur-sm text-paper-100 hover:bg-ink-900/90"
         aria-label="Fullscreen"
       >
         <Maximize2 className="h-4 w-4" strokeWidth={2} />
-      </button>
+      </button>}
 
       {/* Bottom-left: camera label */}
       <div className="absolute bottom-4 left-4 rounded-md bg-ink-900/70 backdrop-blur-sm px-3 py-1.5 text-paper-100">
         <div className="text-[11px] uppercase tracking-wider text-paper-300">
-          Camera 01
+          {incident?.alert?.cameraId || incident?.event?.cameraId || "Camera 01"}
         </div>
-        <div className="text-[13px] font-medium">Webcam · Front aisle</div>
+        <div className="text-[13px] font-medium">
+          MOV demo · {incident?.alert?.location || incident?.event?.location || "Side-by-side"}
+        </div>
       </div>
     </div>
   );

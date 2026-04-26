@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SPOTTER Movement Annotator</title>
+    <link rel="stylesheet" href="./annotator.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">SPOTTER ground truth</p>
+          <h1>3D LIDAR movement annotator</h1>
+        </div>
+        <div class="actions">
+          <label class="file-button">
+            Video
+            <input id="videoInput" type="file" accept="video/*" />
+          </label>
+          <label class="file-button">
+            Import
+            <input id="jsonInput" type="file" accept="application/json,.json" />
+          </label>
+          <button id="loadSample">Sample</button>
+          <button id="exportCsv">CSV</button>
+          <button id="exportJson">JSON</button>
+        </div>
+      </header>
+
+      <section class="workspace">
+        <article class="panel video-panel">
+          <div class="panel-title">
+            <span>Reference CCTV</span>
+            <code id="videoName">cctv_gemini_anchor_full_04m00s_to_13m20s.mp4</code>
+          </div>
+          <img id="videoFrame" alt="Current CCTV frame" />
+        </article>
+
+        <section class="panel map-panel">
+          <div class="panel-title">
+            <span>LIDAR scene placement</span>
+            <code id="timecode">0.0s</code>
+          </div>
+          <div class="map-wrap">
+            <canvas id="lidarCanvas" aria-label="Interactive Three.js LIDAR scene"></canvas>
+          </div>
+        </section>
+
+        <aside class="panel inspector">
+          <div class="panel-title">
+            <span>People</span>
+            <button id="addPerson">Add</button>
+          </div>
+          <div id="peopleList" class="people-list"></div>
+          <div class="controls">
+            <button id="prevFrame">-0.5s</button>
+            <button id="playPause">Play</button>
+            <button id="nextFrame">+0.5s</button>
+          </div>
+          <label class="field">
+            Time
+            <input id="timeSlider" type="range" min="0" max="0" value="0" step="0.5" />
+          </label>
+          <div class="stats">
+            <div><span id="sampleCount">0</span><small>samples</small></div>
+            <div><span id="activePerson">P1</span><small>active</small></div>
+          </div>
+          <p class="hint">Click directly on the Three.js LIDAR floor to place the selected person at the current half-second. The export uses the scene's real x/z coordinates plus movement deltas.</p>
+        </aside>
+      </section>
+    </main>
+    <script type="module" src="./annotator.js"></script>
+  </body>
+</html>

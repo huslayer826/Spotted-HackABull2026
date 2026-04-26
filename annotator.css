@@ -1,0 +1,282 @@
+:root {
+  --paper: #f7efe4;
+  --paper-2: #fbf7f2;
+  --ink: #1c1814;
+  --muted: #706457;
+  --line: #d8c9b7;
+  --rust: #a4512b;
+  --moss: #60754b;
+  --amber: #d08b33;
+  --blue: #4f7698;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #eee3d4 0%, #fbf7f2 48%, #e6d7c5 100%);
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+.file-button {
+  border: 1px solid #33291f;
+  background: var(--ink);
+  color: #fffaf3;
+  border-radius: 7px;
+  height: 36px;
+  padding: 0 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button.secondary {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+
+.app {
+  height: 100vh;
+  padding: 18px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 14px;
+}
+
+.topbar,
+.panel {
+  border: 1px solid var(--line);
+  background: rgba(251, 247, 242, 0.86);
+  box-shadow: 0 18px 55px rgba(66, 45, 28, 0.13);
+}
+
+.topbar {
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.eyebrow {
+  margin: 0 0 3px;
+  color: var(--rust);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: 27px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.file-button {
+  display: inline-flex;
+  align-items: center;
+}
+
+.file-button input {
+  display: none;
+}
+
+.workspace {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(380px, 0.9fr) minmax(520px, 1.35fr) 300px;
+  gap: 14px;
+}
+
+.panel {
+  border-radius: 10px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panel-title {
+  height: 48px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  font-weight: 800;
+}
+
+code {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+video,
+#videoFrame {
+  display: block;
+  width: 100%;
+  height: calc(100% - 48px);
+  background: #181511;
+  object-fit: contain;
+}
+
+.map-panel {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.map-wrap {
+  padding: 14px;
+  min-height: 0;
+}
+
+#lidarCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 620px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #d7d3c9 0%, #cfcac0 100%);
+  cursor: crosshair;
+}
+
+.inspector {
+  padding-bottom: 14px;
+}
+
+.people-list {
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  max-height: 39vh;
+  overflow: auto;
+}
+
+.person-row {
+  width: 100%;
+  height: auto;
+  min-height: 44px;
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  align-items: center;
+  gap: 9px;
+  background: #fffaf3;
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+.person-row.active {
+  border-color: #33291f;
+  box-shadow: inset 0 0 0 1px #33291f;
+}
+
+.swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+.person-row input {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+}
+
+.controls {
+  padding: 0 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 7px;
+}
+
+.field {
+  margin: 14px 12px 0;
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--rust);
+}
+
+.stats {
+  margin: 16px 12px 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.stats div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffaf3;
+  padding: 11px;
+}
+
+.stats span {
+  display: block;
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.hint {
+  margin: 16px 12px 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+@media (max-width: 1100px) {
+  .app {
+    height: auto;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .video-panel {
+    min-height: 320px;
+  }
+
+  #lidarCanvas {
+    height: 70vh;
+  }
+}

@@ -14,6 +14,14 @@ out/
 *.log
 coverage/
 *.tsbuildinfo
+.spotter_uploads/
+.spotter_reviews/
+
+# Generated demo / CV outputs
+annotated_outputs/
+review_outputs/
+track_snapshots/
+*.mov
 
 # Env
 .env
@@ -31,5 +39,6 @@ venv/
 # OS / editor
 .DS_Store
 Thumbs.db
+.claude/
 .idea/
 .vscode/

@@ -1,10 +1,9 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { ArrowUp } from "lucide-react";
 import { Card, CardHeader } from "./Card";
-
-// Smoothed sparkline path roughly matching the design's curve.
-const POINTS = [
-  6, 8, 7, 10, 14, 11, 9, 12, 16, 28, 36, 30, 21, 17, 22, 14, 12, 19, 26, 18, 15, 12, 10, 9,
-];
+import { fallbackSummary, type Summary } from "@/lib/spotter-data";
 
 function buildPath(values: number[], width: number, height: number) {
   const max = Math.max(...values);
@@ -26,9 +25,29 @@ function buildPath(values: number[], width: number, height: number) {
 const X_LABELS = ["12 AM", "6 AM", "12 PM", "6 PM", "12 AM"];
 
 export function AlertsToday() {
+  const [summary, setSummary] = useState<Summary>(fallbackSummary);
   const W = 460;
   const H = 110;
-  const path = buildPath(POINTS, W, H);
+  const path = buildPath(summary.sparkline, W, H);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSummary() {
+      const response = await fetch("/api/summary", { cache: "no-store" });
+      const payload = await response.json().catch(() => null);
+      if (!cancelled && payload?.summary) {
+        setSummary(payload.summary);
+      }
+    }
+
+    loadSummary();
+    const interval = window.setInterval(loadSummary, 10_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   return (
     <Card>
@@ -36,11 +55,11 @@ export function AlertsToday() {
       <div className="px-6 pt-3 pb-5">
         <div className="flex items-center gap-3">
           <div className="text-[44px] font-semibold leading-none text-ink-900 tabular-nums">
-            23
+            {summary.alertsToday}
           </div>
           <span className="inline-flex items-center gap-0.5 rounded-md bg-rust-100 px-2 py-1 text-[12px] font-semibold text-rust-500">
             <ArrowUp className="h-3 w-3" strokeWidth={2.6} />
-            35%
+            {summary.alertsDeltaPct}%
           </span>
         </div>
         <div className="mt-1 text-[12.5px] text-ink-500">vs yesterday</div>

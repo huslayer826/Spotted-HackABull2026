@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "sync:snowflake": "node scripts/sync-mongo-to-snowflake.mjs",
     "lint": "next lint"
   },
   "dependencies": {
@@ -13,9 +14,11 @@
     "@react-three/fiber": "^9.6.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.460.0",
+    "mongodb": "^7.2.0",
     "next": "^16.2.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "snowflake-sdk": "^2.4.0",
     "three": "^0.169.0"
   },
   "devDependencies": {
